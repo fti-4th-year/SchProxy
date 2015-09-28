@@ -20,57 +20,28 @@ void sigpipeHndl( int sign )
 {
 
 }
-struct Pipe
-{
-	SocketHandler in;
-	SocketHandler out;
-	void doWork()
-	{
-		Msg tmp;
-		try
-		{
-			in.timeout( 100 ) >> tmp;
-		} catch( TimeoutException const &e )
-		{
-		}
-		if( tmp.size() != 0 )
-		{
-			//std::cout << tmp.getString() << "\n";
-			out << tmp;
-			tmp = "";
-		}
-		try
-		{
-			out.timeout( 100 ) >> tmp;
-		} catch( TimeoutException const &e )
-		{
-		}
-		if( tmp.size() != 0 )
-		{
-			//std::cout << tmp.getString() << "\n";
-			in << tmp;
-			tmp = "";
-		}
-	}
-
-};
 int main( int argc , char *argv[] )
 {
 	signal( SIGPIPE , sigpipeHndl );
 	SocketFactory factory( SocketListener( atoi( argv[ 1 ] ) ) );
+	struct Pipe
+	{
+		SocketHandler in;
+		SocketHandler out;
+	};
 	std::list< Pipe > pipes;
 	while( true )
 	{
 		try
 		{
-			SocketHandler in( factory.timeout( 100 ).get() );
+			SocketHandler in( factory.timeout( 10 ).get() );
 			Msg socks4_request;
 			in >> socks4_request;
 			//std::cout << "request sent: " + Socks4Manager::getInfo( socks4_request.getString() ) << "\n";
 			SocketHandler out = Socks4Manager::getSocket( socks4_request );
 			std::cout << "connection created:" << out.getInfo() << "\n";
 			in << Socks4Manager::getSuccess();
-			pipes += Pipe{ in , out };
+			pipes += Pipe { in , out };
 		} catch( TimeoutException const &e )
 		{
 		} catch( TCPException const &e )
@@ -81,7 +52,18 @@ int main( int argc , char *argv[] )
 		{
 			try
 			{
-				p->doWork();
+				try
+				{
+					p->in.timeout( 500 ) >> p->out;
+				} catch( TimeoutException const &e )
+				{
+				}
+				try
+				{
+					p->out.timeout( 500 ) >> p->in;
+				} catch( TimeoutException const &e )
+				{
+				}
 			} catch( SocketCloseException const &e )
 			{
 				std::cout << e.getMsg() << "\n";
